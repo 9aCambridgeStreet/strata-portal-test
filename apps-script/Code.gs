@@ -4,12 +4,17 @@
 
 const CLIENT_ID = '983495642617-v0a00ou5rj018d2vjp0veqq0kjuk29je.apps.googleusercontent.com';
 const FOLDER_ID = '1SLoKuLQdiew-yB6x-cHpzm3cxyVpUqwi';
+const MENU_SHEET_ID = '1RnmCjsRmNsnVCG-ZGh7zeDBWq3Qvwm3EeMLPzdklhrc';
 const CACHE_SECONDS = 60;
 
 function doGet(e) {
-  if (e && e.parameter && e.parameter.action === 'trackSlackBrowserClick') {
+  const action = e && e.parameter && e.parameter.action;
+  if (action === 'trackSlackBrowserClick') {
     trackSlackBrowserClick();
     return json({ ok: true });
+  }
+  if (action === 'getMenu') {
+    return json(getMenu());
   }
   return json({ service: 'strata-portal-membership' });
 }
@@ -59,6 +64,57 @@ function memberEmails() {
 
 function json(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// --- Dynamic menu, driven by the "Portal Menu" Sheet ---
+// Matt maintains this sheet directly: one row per nav tab, columns
+// Menu Name | Link | Type | Click Count. Row order = tab order. The `Type`
+// column is informational only, not load-bearing - the actual embed
+// behaviour is worked out from the shape of the Link URL itself, so a
+// mismatched Type (e.g. a spreadsheet link marked "Doc") still renders
+// correctly. A Doc or Sheet link gets embedded inline with an "open to
+// edit" link, same pattern as the portal's hardcoded tabs always used; a
+// Drive folder link embeds the folder view; anything else (a workspace
+// app link, a custom URL scheme like slack://) is treated as a plain
+// external link.
+
+function getMenu() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get('menu');
+  if (cached) return JSON.parse(cached);
+
+  const sheet = SpreadsheetApp.openById(MENU_SHEET_ID).getSheets()[0];
+  const rows = sheet.getDataRange().getValues().slice(1); // drop header row
+
+  const items = rows
+    .filter(function (r) { return String(r[0] || '').trim(); })
+    .map(function (r) {
+      const name = String(r[0] || '').trim();
+      const link = String(r[1] || '').trim();
+      return { name: name, link: link, kind: classifyLink(link), id: extractId(link) };
+    });
+
+  cache.put('menu', JSON.stringify(items), CACHE_SECONDS);
+  return items;
+}
+
+function classifyLink(link) {
+  if (!link) return 'empty';
+  if (link.indexOf('drive.google.com/drive/folders/') !== -1) return 'folder';
+  if (link.indexOf('docs.google.com/document/') !== -1) return 'doc';
+  if (link.indexOf('docs.google.com/spreadsheets/') !== -1) return 'sheet';
+  return 'link';
+}
+
+function extractId(link) {
+  const m = link.match(/\/d\/([a-zA-Z0-9_-]+)/) || link.match(/folders\/([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : null;
+}
+
+// Run this once from the editor to sanity-check the menu sheet is readable
+// and see how each row was classified, before wiring it up live.
+function testGetMenu() {
+  Logger.log(JSON.stringify(getMenu(), null, 2));
 }
 
 // --- Slack Browser link click tracking ---

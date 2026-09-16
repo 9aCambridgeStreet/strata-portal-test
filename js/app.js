@@ -20,25 +20,102 @@ function onSignedIn(profile) {
   document.getElementById('userName').textContent = profile.name || profile.email;
   document.getElementById('userAvatar').src = profile.picture || '';
 
-  document.getElementById('homeFrame').src = `https://docs.google.com/document/d/${CONFIG.portalHomeDocId}/preview`;
-  document.getElementById('homeOpenLink').href = `https://docs.google.com/document/d/${CONFIG.portalHomeDocId}/edit`;
-  document.getElementById('documentsLink').href = `https://drive.google.com/drive/folders/${CONFIG.driveFolderId}`;
-  // Google refuses to frame the editable Sheet (frame-ancestors), so embed the
-  // read-only preview and send people to Sheets itself to make changes.
-  document.getElementById('sheetFrame').src = `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/preview`;
-  document.getElementById('sheetOpenLink').href = `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/edit`;
-  document.getElementById('processesFrame').src = `https://docs.google.com/document/d/${CONFIG.agreedProcessesDocId}/preview`;
-  document.getElementById('processesOpenLink').href = `https://docs.google.com/document/d/${CONFIG.agreedProcessesDocId}/edit`;
-  document.getElementById('budgetFrame').src = `https://docs.google.com/spreadsheets/d/${CONFIG.budgetSheetId}/preview`;
-  document.getElementById('budgetOpenLink').href = `https://docs.google.com/spreadsheets/d/${CONFIG.budgetSheetId}/edit`;
-  // Two separate links rather than one auto-detecting one: detecting whether
-  // a custom URL scheme actually opened an app is a timing guess on iOS,
-  // and kept guessing wrong on a real iPad even after tuning it twice. A
-  // person can tell instantly which one they want; the page can't.
-  document.getElementById('slackAppLink').href = 'slack://open';
-  document.getElementById('slackBrowserLink').href = CONFIG.slackUrl;
+  loadMenu();
+}
 
-  showTab('home');
+// Menu is driven by the "Portal Menu" Sheet (see apps-script/Code.gs's
+// getMenu action) rather than hardcoded here - row order = tab order, and
+// the embed type is worked out from each row's Link URL shape.
+function loadMenu() {
+  fetch(`${CONFIG.membershipUrl}?action=getMenu`)
+    .then((res) => res.json())
+    .then(renderMenu)
+    .catch(() => {
+      document.getElementById('portalNav').innerHTML =
+        '<span class="nav-loading">Could not load the menu. Try reloading.</span>';
+    });
+}
+
+function slugify(name, index) {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  return (slug || 'tab') + '-' + index;
+}
+
+function renderMenu(items) {
+  const nav = document.getElementById('portalNav');
+  const main = document.getElementById('portalMain');
+  nav.innerHTML = '';
+  main.innerHTML = '';
+
+  const embeddable = { doc: true, sheet: true, folder: true };
+  let firstTab = null;
+
+  items
+    .filter((item) => item.kind !== 'empty')
+    .forEach((item, index) => {
+      if (!embeddable[item.kind]) {
+        // 'link' kind: a plain external link, no tab/panel of its own.
+        const navEl = document.createElement('a');
+        navEl.className = 'nav-item';
+        navEl.href = item.link;
+        navEl.target = '_blank';
+        navEl.rel = 'noopener';
+        navEl.textContent = item.name + ' ↗';
+        nav.appendChild(navEl);
+        return;
+      }
+
+      const tabName = slugify(item.name, index);
+      if (!firstTab) firstTab = tabName;
+
+      const navEl = document.createElement('div');
+      navEl.className = 'nav-item';
+      navEl.dataset.tab = tabName;
+      navEl.setAttribute('role', 'button');
+      navEl.textContent = item.name;
+      navEl.addEventListener('click', () => showTab(tabName));
+      nav.appendChild(navEl);
+
+      const panel = document.createElement('div');
+      panel.className = 'tab-panel';
+      panel.dataset.tab = tabName;
+      panel.hidden = true;
+
+      const openLink = document.createElement('a');
+      openLink.target = '_blank';
+      openLink.rel = 'noopener';
+
+      const iframe = document.createElement('iframe');
+      iframe.className = 'embed-frame';
+      iframe.title = item.name;
+
+      if (item.kind === 'doc') {
+        iframe.src = `https://docs.google.com/document/d/${item.id}/preview`;
+        openLink.href = `https://docs.google.com/document/d/${item.id}/edit`;
+        openLink.textContent = 'Open in Google Docs ↗';
+      } else if (item.kind === 'sheet') {
+        // Google refuses to frame the editable Sheet (frame-ancestors), so
+        // embed the read-only preview and send people to Sheets itself to
+        // make changes - same trick the hardcoded tabs always used.
+        iframe.src = `https://docs.google.com/spreadsheets/d/${item.id}/preview`;
+        openLink.href = `https://docs.google.com/spreadsheets/d/${item.id}/edit`;
+        openLink.textContent = 'Open in Google Sheets ↗';
+      } else {
+        iframe.src = `https://drive.google.com/embeddedfolderview?id=${item.id}#list`;
+        openLink.href = `https://drive.google.com/drive/folders/${item.id}`;
+        openLink.textContent = 'Open in Google Drive ↗';
+      }
+
+      const toolbar = document.createElement('div');
+      toolbar.className = 'frame-toolbar';
+      toolbar.appendChild(openLink);
+
+      panel.appendChild(toolbar);
+      panel.appendChild(iframe);
+      main.appendChild(panel);
+    });
+
+  if (firstTab) showTab(firstTab);
 }
 
 function showTab(tabName) {
@@ -56,20 +133,14 @@ function initPortal() {
     el.textContent = CONFIG.strataName;
   });
 
-  document.querySelectorAll('.nav-item[data-tab]').forEach((item) => {
-    item.addEventListener('click', () => showTab(item.dataset.tab));
-  });
-
   document.getElementById('signOutButton').addEventListener('click', signOut);
 
-  // Fire-and-forget: lets Matt see (via a weekly email from the membership
-  // script) whether anyone actually uses the browser fallback link, so he
-  // can decide later whether to remove it. Never blocks the link's own
-  // navigation, and a failed/blocked request just means one click goes
-  // uncounted, nothing else depends on it.
-  document.getElementById('slackBrowserLink').addEventListener('click', () => {
-    fetch(`${CONFIG.membershipUrl}?action=trackSlackBrowserClick`).catch(() => {});
-  });
+  // Nav-item click handlers are now wired per-item inside renderMenu(),
+  // since the menu itself is built dynamically after sign-in. The old
+  // Slack Browser click-tracking wiring lived here too, but it targeted a
+  // fixed #slackBrowserLink element that no longer exists now the menu is
+  // dynamic - left out for now, pending Matt confirming whether per-item
+  // click tracking (the sheet's "Click Count" column) is still wanted.
 
   initAuth();
 }
