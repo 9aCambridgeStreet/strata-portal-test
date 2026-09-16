@@ -47,7 +47,11 @@ function renderMenu(items) {
   nav.innerHTML = '';
   main.innerHTML = '';
 
-  const embeddable = { doc: true, sheet: true, folder: true };
+  // 'folder' (a Drive folder link, e.g. the Documents row) is deliberately
+  // NOT embeddable - Drive's own folder-view iframe is a clunky, read-only
+  // list, which is exactly why the real portal moved away from it. It
+  // renders as a plain external link, same as 'link'.
+  const embeddable = { doc: true, sheet: true };
   let firstTab = null;
 
   items
@@ -93,17 +97,13 @@ function renderMenu(items) {
         iframe.src = `https://docs.google.com/document/d/${item.id}/preview`;
         openLink.href = `https://docs.google.com/document/d/${item.id}/edit`;
         openLink.textContent = 'Open in Google Docs ↗';
-      } else if (item.kind === 'sheet') {
+      } else {
         // Google refuses to frame the editable Sheet (frame-ancestors), so
         // embed the read-only preview and send people to Sheets itself to
         // make changes - same trick the hardcoded tabs always used.
         iframe.src = `https://docs.google.com/spreadsheets/d/${item.id}/preview`;
         openLink.href = `https://docs.google.com/spreadsheets/d/${item.id}/edit`;
         openLink.textContent = 'Open in Google Sheets ↗';
-      } else {
-        iframe.src = `https://drive.google.com/embeddedfolderview?id=${item.id}#list`;
-        openLink.href = `https://drive.google.com/drive/folders/${item.id}`;
-        openLink.textContent = 'Open in Google Drive ↗';
       }
 
       const toolbar = document.createElement('div');
