@@ -149,7 +149,17 @@ function getMenuTableRows(ss) {
     .getRange(r.startRowIndex + 1, r.startColumnIndex + 1, numRows, numCols)
     .getValues();
 
-  return values.slice(1); // drop the table's own header row
+  // Normally the table's header ("Menu Name"/"Link"/...) is row 0 of its
+  // own range, but a row added above the table (like PortalName) can end
+  // up inside the table's boundary too, pushing the header down by one -
+  // seen live, values[0] was still something else and the real header
+  // leaked through as row[1]. Search for the header by content within the
+  // table's own rows rather than assuming a fixed offset, and fall back
+  // to dropping just row 0 if for some reason it's not found.
+  const headerIndex = values.findIndex(function (row) {
+    return String(row[0] || '').trim().toLowerCase() === 'menu name';
+  });
+  return headerIndex === -1 ? values.slice(1) : values.slice(headerIndex + 1);
 }
 
 function classifyLink(link) {
