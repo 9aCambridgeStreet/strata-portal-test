@@ -111,24 +111,18 @@ function getMenu() {
   return result;
 }
 
-const MENU_TABLE_NAME = 'Menu';
+const MENU_TABLE_RANGE_NAME = 'MenuTable';
 
-// Uses the sheet's native Table object (not a fixed cell range) to find
-// the menu data - the Table itself knows exactly which rows/columns are
-// its own, so rows added elsewhere on the sheet (like the PortalName row)
-// never need a matching change here. Returns the data rows only; the
-// Table's own header row is stripped.
+// Apps Script has no API for Sheets' native Table objects (confirmed via
+// a live test - sheet.getTables() doesn't exist), so this uses a named
+// range instead, same mechanism as PortalName. Name it generously oversized
+// (e.g. A3:D200) rather than exactly the current row count: blank rows are
+// filtered out below, so new menu items can be added well into the future
+// without ever having to edit the named range itself.
 function getMenuTableRows(ss) {
-  const sheets = ss.getSheets();
-  for (let i = 0; i < sheets.length; i++) {
-    const tables = sheets[i].getTables();
-    for (let j = 0; j < tables.length; j++) {
-      if (tables[j].getName() === MENU_TABLE_NAME) {
-        return tables[j].getRange().getValues().slice(1);
-      }
-    }
-  }
-  throw new Error('Menu table "' + MENU_TABLE_NAME + '" not found');
+  const range = ss.getRangeByName(MENU_TABLE_RANGE_NAME);
+  if (!range) throw new Error('Named range "' + MENU_TABLE_RANGE_NAME + '" not found');
+  return range.getValues();
 }
 
 function classifyLink(link) {
