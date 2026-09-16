@@ -23,27 +23,31 @@ function onSignedIn(profile) {
   loadMenu();
 }
 
-const MENU_CACHE_KEY = 'strataPortal.menuCache';
+// v2: the cached shape changed from a bare items array to {portalName,
+// items} - a new key sidesteps any old-format cache left over in a
+// browser from before that change.
+const MENU_CACHE_KEY = 'strataPortal.menuCacheV2';
 
-// Menu is driven by the "Portal Menu" Sheet (see apps-script/Code.gs's
-// getMenu action) rather than hardcoded here - row order = tab order, and
-// the embed type is worked out from each row's Link URL shape.
+// Menu (and the portal's display name, from the sheet's PortalName named
+// range) are driven by the "Portal Menu" Sheet - see apps-script/Code.gs's
+// getMenu action. Row order = tab order, and each row's embed type is
+// worked out from its Link URL shape.
 //
-// Stale-while-revalidate: render last time's menu instantly from
-// localStorage if there is one, then always fetch a fresh copy in the
+// Stale-while-revalidate: render last time's data instantly from
+// localStorage if there is any, then always fetch a fresh copy in the
 // background and store it for next time. The menu rarely changes, so
 // showing yesterday's tabs for one extra reload is a fine trade for not
 // making every visit wait on a live Apps Script round trip. Only shows a
 // loading/error state when there's nothing cached yet (first-ever visit).
 function loadMenu() {
   const cached = readMenuCache();
-  if (cached) renderMenu(cached);
+  if (cached) applyMenuData(cached);
 
   fetch(`${CONFIG.membershipUrl}?action=getMenu`)
     .then((res) => res.json())
-    .then((items) => {
-      writeMenuCache(items);
-      if (!cached) renderMenu(items);
+    .then((data) => {
+      writeMenuCache(data);
+      if (!cached) applyMenuData(data);
     })
     .catch(() => {
       if (!cached) {
@@ -51,6 +55,21 @@ function loadMenu() {
           '<span class="nav-loading">Could not load the menu. Try reloading.</span>';
       }
     });
+}
+
+function applyMenuData(data) {
+  // Empty/missing PortalName (not filled in yet, or the named range was
+  // deleted) keeps whatever config.js's strataName already put on screen
+  // rather than blanking the title out.
+  if (data.portalName) applyPortalName(data.portalName);
+  renderMenu(data.items || []);
+}
+
+function applyPortalName(name) {
+  document.title = name;
+  document.querySelectorAll('[data-portal-name]').forEach((el) => {
+    el.textContent = name;
+  });
 }
 
 function readMenuCache() {

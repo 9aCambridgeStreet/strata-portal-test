@@ -83,7 +83,8 @@ function getMenu() {
   const cached = cache.get('menu');
   if (cached) return JSON.parse(cached);
 
-  const sheet = SpreadsheetApp.openById(MENU_SHEET_ID).getSheets()[0];
+  const ss = SpreadsheetApp.openById(MENU_SHEET_ID);
+  const sheet = ss.getSheets()[0];
   const rows = sheet.getDataRange().getValues().slice(1); // drop header row
 
   const items = rows
@@ -94,8 +95,21 @@ function getMenu() {
       return { name: name, link: link, kind: classifyLink(link), id: extractId(link) };
     });
 
-  cache.put('menu', JSON.stringify(items), CACHE_SECONDS);
-  return items;
+  // Portal title, from a named range in the same sheet rather than a fixed
+  // header row/column - keeps it independent of however the menu table
+  // itself gets edited. Falls back to '' (frontend keeps its config.js
+  // default) if the named range is missing or empty.
+  let portalName = '';
+  try {
+    const range = ss.getRangeByName('PortalName');
+    portalName = range ? String(range.getValue()).trim() : '';
+  } catch (err) {
+    portalName = '';
+  }
+
+  const result = { portalName: portalName, items: items };
+  cache.put('menu', JSON.stringify(result), CACHE_SECONDS);
+  return result;
 }
 
 function classifyLink(link) {
