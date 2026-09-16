@@ -23,17 +23,52 @@ function onSignedIn(profile) {
   loadMenu();
 }
 
+const MENU_CACHE_KEY = 'strataPortal.menuCache';
+
 // Menu is driven by the "Portal Menu" Sheet (see apps-script/Code.gs's
 // getMenu action) rather than hardcoded here - row order = tab order, and
 // the embed type is worked out from each row's Link URL shape.
+//
+// Stale-while-revalidate: render last time's menu instantly from
+// localStorage if there is one, then always fetch a fresh copy in the
+// background and store it for next time. The menu rarely changes, so
+// showing yesterday's tabs for one extra reload is a fine trade for not
+// making every visit wait on a live Apps Script round trip. Only shows a
+// loading/error state when there's nothing cached yet (first-ever visit).
 function loadMenu() {
+  const cached = readMenuCache();
+  if (cached) renderMenu(cached);
+
   fetch(`${CONFIG.membershipUrl}?action=getMenu`)
     .then((res) => res.json())
-    .then(renderMenu)
+    .then((items) => {
+      writeMenuCache(items);
+      if (!cached) renderMenu(items);
+    })
     .catch(() => {
-      document.getElementById('portalNav').innerHTML =
-        '<span class="nav-loading">Could not load the menu. Try reloading.</span>';
+      if (!cached) {
+        document.getElementById('portalNav').innerHTML =
+          '<span class="nav-loading">Could not load the menu. Try reloading.</span>';
+      }
     });
+}
+
+function readMenuCache() {
+  try {
+    const raw = localStorage.getItem(MENU_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function writeMenuCache(items) {
+  try {
+    localStorage.setItem(MENU_CACHE_KEY, JSON.stringify(items));
+  } catch (err) {
+    // Storage full or blocked (e.g. private browsing) - fine, it just
+    // means no instant-load next time; the live fetch still works.
+  }
 }
 
 function slugify(name, index) {
