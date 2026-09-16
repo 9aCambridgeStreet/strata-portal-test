@@ -100,7 +100,10 @@ function getMenu() {
 
 function classifyLink(link) {
   if (!link) return 'empty';
-  if (link.indexOf('drive.google.com/drive/folders/') !== -1) return 'folder';
+  // Drive folder URLs sometimes carry a /u/<n>/ account-switcher segment
+  // (e.g. drive.google.com/drive/u/3/folders/...) depending on how the
+  // link was copied, so match on "/folders/" rather than a fixed prefix.
+  if (/drive\.google\.com\/drive\/(u\/\d+\/)?folders\//.test(link)) return 'folder';
   if (link.indexOf('docs.google.com/document/') !== -1) return 'doc';
   if (link.indexOf('docs.google.com/spreadsheets/') !== -1) return 'sheet';
   return 'link';
