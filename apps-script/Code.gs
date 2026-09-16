@@ -111,18 +111,45 @@ function getMenu() {
   return result;
 }
 
-const MENU_TABLE_RANGE_NAME = 'MenuTable';
+const MENU_TABLE_NAME = 'Menu';
 
-// Apps Script has no API for Sheets' native Table objects (confirmed via
-// a live test - sheet.getTables() doesn't exist), so this uses a named
-// range instead, same mechanism as PortalName. Name it generously oversized
-// (e.g. A3:D200) rather than exactly the current row count: blank rows are
-// filtered out below, so new menu items can be added well into the future
-// without ever having to edit the named range itself.
+// SpreadsheetApp (the built-in service) has no API for Sheets' native
+// Table objects - confirmed via a live test, sheet.getTables() doesn't
+// exist there. The Advanced Sheets Service (added via Services + in the
+// editor, identifier "Sheets") does expose them, via the REST API's
+// `tables` field on each sheet. This looks up the table by name, reads
+// its *current* range (which tracks the table as it grows - no manual
+// resizing needed, unlike a named range), then pulls the actual cell
+// values through SpreadsheetApp using that range.
 function getMenuTableRows(ss) {
-  const range = ss.getRangeByName(MENU_TABLE_RANGE_NAME);
-  if (!range) throw new Error('Named range "' + MENU_TABLE_RANGE_NAME + '" not found');
-  return range.getValues();
+  const meta = Sheets.Spreadsheets.get(ss.getId(), {
+    fields: 'sheets(properties(sheetId),tables(name,range))',
+  });
+
+  let table = null;
+  let sheetId = null;
+  (meta.sheets || []).forEach(function (sheet) {
+    (sheet.tables || []).forEach(function (t) {
+      if (t.name === MENU_TABLE_NAME) {
+        table = t;
+        sheetId = sheet.properties.sheetId;
+      }
+    });
+  });
+  if (!table) throw new Error('Table "' + MENU_TABLE_NAME + '" not found');
+
+  const gridSheet = ss.getSheets().filter(function (s) {
+    return s.getSheetId() === sheetId;
+  })[0];
+
+  const r = table.range;
+  const numRows = r.endRowIndex - r.startRowIndex;
+  const numCols = r.endColumnIndex - r.startColumnIndex;
+  const values = gridSheet
+    .getRange(r.startRowIndex + 1, r.startColumnIndex + 1, numRows, numCols)
+    .getValues();
+
+  return values.slice(1); // drop the table's own header row
 }
 
 function classifyLink(link) {
