@@ -151,7 +151,6 @@ function getMenuTableRows(ss) {
 
   // The table always has exactly one header row (row 0 of its own range,
   // confirmed - Home/To-Do List/etc are rows 1-7) - so just drop it.
-  Logger.log('getMenuTableRows: row 0 = ' + JSON.stringify(values[0]) + ', row 1 = ' + JSON.stringify(values[1]));
   return values.slice(1).filter(function (row) {
     return String(row[0] || '').trim();
   });
