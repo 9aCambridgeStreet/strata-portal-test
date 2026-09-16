@@ -149,15 +149,11 @@ function getMenuTableRows(ss) {
     .getRange(r.startRowIndex + 1, r.startColumnIndex + 1, numRows, numCols)
     .getValues();
 
-  // Rather than guess which row index is "the header" (tried twice live
-  // and still saw it leak through - something about how this table's
-  // range is reported doesn't match a simple row-0 or search-and-slice
-  // assumption), just drop any row that IS the header text, wherever it
-  // lands, along with any blank row. Robust regardless of the exact
-  // range/offset the API hands back.
-  return values.filter(function (row) {
-    const name = String(row[0] || '').trim().toLowerCase();
-    return name && name !== 'menu name';
+  // The table always has exactly one header row (row 0 of its own range,
+  // confirmed - Home/To-Do List/etc are rows 1-7) - so just drop it.
+  Logger.log('getMenuTableRows: row 0 = ' + JSON.stringify(values[0]) + ', row 1 = ' + JSON.stringify(values[1]));
+  return values.slice(1).filter(function (row) {
+    return String(row[0] || '').trim();
   });
 }
 
