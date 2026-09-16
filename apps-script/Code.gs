@@ -84,16 +84,7 @@ function getMenu() {
   if (cached) return JSON.parse(cached);
 
   const ss = SpreadsheetApp.openById(MENU_SHEET_ID);
-  const sheet = ss.getSheets()[0];
-  const values = sheet.getDataRange().getValues();
-  // Find the "Menu Name" header row rather than assuming it's row 1 - a
-  // PortalName row/cells above the table shifts it down, and this way
-  // any further rows added above the table won't need a matching code
-  // change here.
-  const headerIndex = values.findIndex(function (r) {
-    return String(r[0] || '').trim().toLowerCase() === 'menu name';
-  });
-  const rows = headerIndex === -1 ? [] : values.slice(headerIndex + 1);
+  const rows = getMenuTableRows(ss);
 
   const items = rows
     .filter(function (r) { return String(r[0] || '').trim(); })
@@ -118,6 +109,26 @@ function getMenu() {
   const result = { portalName: portalName, items: items };
   cache.put('menu', JSON.stringify(result), CACHE_SECONDS);
   return result;
+}
+
+const MENU_TABLE_NAME = 'Menu';
+
+// Uses the sheet's native Table object (not a fixed cell range) to find
+// the menu data - the Table itself knows exactly which rows/columns are
+// its own, so rows added elsewhere on the sheet (like the PortalName row)
+// never need a matching change here. Returns the data rows only; the
+// Table's own header row is stripped.
+function getMenuTableRows(ss) {
+  const sheets = ss.getSheets();
+  for (let i = 0; i < sheets.length; i++) {
+    const tables = sheets[i].getTables();
+    for (let j = 0; j < tables.length; j++) {
+      if (tables[j].getName() === MENU_TABLE_NAME) {
+        return tables[j].getRange().getValues().slice(1);
+      }
+    }
+  }
+  throw new Error('Menu table "' + MENU_TABLE_NAME + '" not found');
 }
 
 function classifyLink(link) {
