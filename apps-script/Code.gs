@@ -85,7 +85,15 @@ function getMenu() {
 
   const ss = SpreadsheetApp.openById(MENU_SHEET_ID);
   const sheet = ss.getSheets()[0];
-  const rows = sheet.getDataRange().getValues().slice(1); // drop header row
+  const values = sheet.getDataRange().getValues();
+  // Find the "Menu Name" header row rather than assuming it's row 1 - a
+  // PortalName row/cells above the table shifts it down, and this way
+  // any further rows added above the table won't need a matching code
+  // change here.
+  const headerIndex = values.findIndex(function (r) {
+    return String(r[0] || '').trim().toLowerCase() === 'menu name';
+  });
+  const rows = headerIndex === -1 ? [] : values.slice(headerIndex + 1);
 
   const items = rows
     .filter(function (r) { return String(r[0] || '').trim(); })
