@@ -10,9 +10,11 @@ const CONFIG = {
   // site's exact URL added under "Authorized JavaScript origins".
   googleClientId: '983495642617-v0a00ou5rj018d2vjp0veqq0kjuk29je.apps.googleusercontent.com',
 
-  // Web app URL of the membership Apps Script (apps-script/Code.gs). Members are
-  // whoever the Drive folder below is shared with, there is no list to edit here.
-  membershipUrl: 'https://script.google.com/macros/s/AKfycbxMlDJk5pz4Vu_VEiTXeYX3cAnrP1-pIOYPTknwK_KghrhmyEWr8zz5wkJ-OH1cnPeX/exec',
+  // Web app URL of the membership + menu Apps Script (apps-script/Code.gs).
+  // Members are whoever the Drive folder below is shared with, there is no
+  // list to edit here. This points at the separate TEST deployment of the
+  // script, not the real committee's live one.
+  membershipUrl: 'https://script.google.com/macros/s/AKfycbzjlf5WiEj23MxqJqJ2QGqH0of5VXT5aF6hMQd-mbdyv1Oa_2WBg7RNqNcSjC8-JG_A/exec',
 
   // The ID of the Google Doc shown on the Home tab, embedded directly the
   // same way as the Documents and To-Do tabs.
